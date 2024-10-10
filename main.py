@@ -8,12 +8,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import SGD, Adam
 import torch.optim as optim
-from math import cos
+from math import cos, exp, sin
+import numpy as np
 
-f = open('C:/Programs/Disk_C/CodeBlocks_projects/for_tests/Formula.txt')
+print('start Python')
+f = open('C:/Programs/Disk_C/CodeBlocks_projects/embedding_python/Formula.txt', 'r')
 try:
-    formula = f.read()
-    print(formula)
+    formulas = f.readlines()
+    formulas = [line.rstrip() for line in formulas]
+    print(formulas)
+    n_individs = len(formulas)
 finally:
     f.close()
 
@@ -21,7 +25,7 @@ finally:
 
 
 batch_size = 100
-num_epochs = 10
+num_epochs = 1
 transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,)), ])
 traindt = MNIST(root='data/', train=True, transform=transform, download=True)
 testdt = MNIST(root='data', train=False, transform=transform, download=True)
@@ -87,57 +91,63 @@ def adjust_learning_rate(optimizer, epoch, num_epochs, formula):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
-
-# In[15]:
-
-
-losses = []
-accuracies = []
-test_losses = []
-test_accuracies = []
-# Train the model
-for epoch in range(num_epochs):
-    adjust_learning_rate(optimizer, epoch, num_epochs, formula)
-    for i, (images, labels) in enumerate(train_loader):
-        # Forward pass
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-
-        # Backward pass and optimization
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        _, predicted = torch.max(outputs.data, 1)
-    acc = (predicted == labels).sum().item() / labels.size(0)
-    accuracies.append(acc)
-    losses.append(loss.item())
-
-    # Evaluate the model on the validation set
-    test_loss = 0.0
-    test_acc = 0.0
-    with torch.no_grad():
-        for images, labels in test_loader:
+results = np.zeros(n_individs)
+"""losses = np.zeros()
+accuracies = np.zeros()
+test_losses = np.zeros()
+test_accuracies = np.zeros()"""
+for k in range(n_individs):
+    """losses = []
+    accuracies = []
+    test_losses = []
+    test_accuracies = []"""
+    # Train the model
+    for epoch in range(num_epochs):
+        running_loss = 0
+        adjust_learning_rate(optimizer, epoch, num_epochs, formulas[k])
+        for i, (images, labels) in enumerate(train_loader):
+            # Forward pass
             outputs = model(images)
             loss = criterion(outputs, labels)
-            test_loss += loss.item()
 
-            _, predicted = torch.max(outputs.data, 1)
-        total = labels.size(0)
-        correct = (predicted == labels).sum().item()
-        test_acc += correct / total
-        test_accuracies.append(acc)
-        test_losses.append(loss.item())
-    current_lr = optimizer.param_groups[0]['lr']
+            # Backward pass and optimization
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            running_loss += loss.item()
 
-    print('Epoch [{}/{}], lr:{:.4f}, Loss:{:.4f}, Test Loss:{:.4f}, Accuracy:{:.2f}, Test Accuracy:{:.2f}'.format(
-        epoch + 1, num_epochs, current_lr, loss.item(), test_loss, acc, test_acc))
+        #accuracies.append(acc)
+        #losses.append(loss.item())
+        running_loss /= len(train_loader)
+        # Evaluate the model on the validation set
+        test_loss = 0.0
+        correct = 0.0
+        total = 0.0
+        num_batches = len(test_loader)
+        with torch.no_grad():
+            for images, labels in test_loader:
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+                test_loss += loss.item()
 
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        test_loss /= num_batches
+        test_acc = correct / total
+            #test_accuracies.append(acc)
+            #test_losses.append(loss.item())
+        current_lr = optimizer.param_groups[0]['lr']
+
+        print('Tree {}: Epoch [{}/{}], lr:{:.4f}, Loss:{:.4f}, Test Loss:{:.4f}, Test Accuracy:{:.2f}'.format(
+        k, epoch + 1, num_epochs, current_lr, running_loss, test_loss, test_acc))
+        results[k] = test_acc
 # In[18]:
 
 
-f_write = open('C:/Programs/Disk_C/CodeBlocks_projects/for_tests/Accuracy.txt', 'w')
+f_write = open('C:/Programs/Disk_C/CodeBlocks_projects/embedding_python/Accuracy.txt', 'w')
 try:
-    f_write.write(str(test_acc))
+    for i in range(n_individs):
+        f_write.write(str(results[i])+'\n')
 finally:
     f_write.close()
