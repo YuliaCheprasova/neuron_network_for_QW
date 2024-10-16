@@ -8,24 +8,77 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import SGD, Adam
 import torch.optim as optim
-from math import cos, exp, sin
+from math import cos, exp, sin, log
 import numpy as np
+#import numexpr as ne Не поддерживает log с двумя аргументами
+import sys
+
+
+"""def check_formula(formula):
+    notfin = True
+    expr = formula
+    while(notfin):
+        if 'log' in expr:
+            ind = expr.find('log')
+            arg = expr[ind+4:]
+            print(arg)
+            ind2 = arg.find('(')
+            if (ind2 != -1):"""
+
+
+
+"""def adjust_learning_rate(optimizer, epoch, num_epochs, formula):
+    initial_lr = 0.01
+    fin_lr = 0.001
+    step = (initial_lr-fin_lr)/num_epochs
+
+    x00 = epoch
+    lr = eval(formula)
+
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr"""
+
+class Classifier(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.linear1 = nn.Linear(28 * 28, 100)
+        self.linear2 = nn.Linear(100, 50)
+        self.final = nn.Linear(50, 10)
+        self.relu = nn.ReLU()
+
+    def forward(self, image):
+        a = image.view(-1, 28 * 28)
+        a = self.relu(self.linear1(a))
+        a = self.relu(self.linear2(a))
+        a = self.final(a)
+        return a
+
+
+batch_size = 100
+num_epochs = 3
+
 
 print('start Python')
-f = open('C:/Programs/Disk_C/CodeBlocks_projects/embedding_python/Formula.txt', 'r')
+f = open('C:/Programs/Disk_C/CodeBlocks_projects/gp_with_neural_network/Lrs.txt', 'r')
 try:
-    formulas = f.readlines()
-    formulas = [line.rstrip() for line in formulas]
-    print(formulas)
-    n_individs = len(formulas)
+    lines = f.readlines()
+    n_individs = len(lines)
+    lrs = np.zeros((n_individs, num_epochs))
+    for i,line in enumerate(lines):
+        line = line.rstrip()
+        line = line.split('\t')
+        line = list(map(float, line))
+        lrs[i] = np.array(line)
+    print(lrs)
+
 finally:
     f.close()
 
 # In[10]:
+"""for k in range(n_individs):
+    check_formula(formulas[k])"""
 
 
-batch_size = 100
-num_epochs = 1
 transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,)), ])
 traindt = MNIST(root='data/', train=True, transform=transform, download=True)
 testdt = MNIST(root='data', train=False, transform=transform, download=True)
@@ -58,53 +111,22 @@ class Classifier(nn.Module):
         return x"""
 
 
-class Classifier(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.linear1 = nn.Linear(28 * 28, 100)
-        self.linear2 = nn.Linear(100, 50)
-        self.final = nn.Linear(50, 10)
-        self.relu = nn.ReLU()
-
-    def forward(self, image):
-        a = image.view(-1, 28 * 28)
-        a = self.relu(self.linear1(a))
-        a = self.relu(self.linear2(a))
-        a = self.final(a)
-        return a
-
 
 model = Classifier()
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.1)
 
+#max_int = sys.maxsize
+#min_int = -sys.maxsize-1
 
-# In[12]:
-
-
-def adjust_learning_rate(optimizer, epoch, num_epochs, formula):
-    """initial_lr = 0.01
-    fin_lr = 0.001
-    step = (initial_lr-fin_lr)/num_epochs"""
-    e = epoch
-    lr = eval(formula)
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
 
 results = np.zeros(n_individs)
-"""losses = np.zeros()
-accuracies = np.zeros()
-test_losses = np.zeros()
-test_accuracies = np.zeros()"""
 for k in range(n_individs):
-    """losses = []
-    accuracies = []
-    test_losses = []
-    test_accuracies = []"""
     # Train the model
-    for epoch in range(num_epochs):
+    for epoch in range(1, num_epochs+1):
         running_loss = 0
-        adjust_learning_rate(optimizer, epoch, num_epochs, formulas[k])
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lrs[k][epoch-1]
         for i, (images, labels) in enumerate(train_loader):
             # Forward pass
             outputs = model(images)
@@ -140,12 +162,12 @@ for k in range(n_individs):
         current_lr = optimizer.param_groups[0]['lr']
 
         print('Tree {}: Epoch [{}/{}], lr:{:.4f}, Loss:{:.4f}, Test Loss:{:.4f}, Test Accuracy:{:.2f}'.format(
-        k, epoch + 1, num_epochs, current_lr, running_loss, test_loss, test_acc))
-        results[k] = test_acc
+        k, epoch, num_epochs, current_lr, running_loss, test_loss, test_acc))
+        results[k] = round(test_loss, 4)
 # In[18]:
 
 
-f_write = open('C:/Programs/Disk_C/CodeBlocks_projects/embedding_python/Accuracy.txt', 'w')
+f_write = open('C:/Programs/Disk_C/CodeBlocks_projects/gp_with_neural_network/Losses.txt', 'w')
 try:
     for i in range(n_individs):
         f_write.write(str(results[i])+'\n')
